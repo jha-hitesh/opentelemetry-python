@@ -1,12 +1,15 @@
 import logging
 
 from opentelemetry import trace
-from opentelemetry._logs import set_logger_provider
 from opentelemetry.exporter.otlp.proto.grpc._log_exporter import (
     OTLPLogExporter,
 )
-from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
-from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
+from opentelemetry.sdk._logs import (
+    LogEmitterProvider,
+    OTLPHandler,
+    set_log_emitter_provider,
+)
+from opentelemetry.sdk._logs.export import BatchLogProcessor
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import (
@@ -19,7 +22,7 @@ trace.get_tracer_provider().add_span_processor(
     BatchSpanProcessor(ConsoleSpanExporter())
 )
 
-logger_provider = LoggerProvider(
+log_emitter_provider = LogEmitterProvider(
     resource=Resource.create(
         {
             "service.name": "shoppingcart",
@@ -27,21 +30,20 @@ logger_provider = LoggerProvider(
         }
     ),
 )
-set_logger_provider(logger_provider)
+set_log_emitter_provider(log_emitter_provider)
 
 exporter = OTLPLogExporter(insecure=True)
-logger_provider.add_log_record_processor(BatchLogRecordProcessor(exporter))
-handler = LoggingHandler(level=logging.NOTSET, logger_provider=logger_provider)
-
-# Set the root logger level to NOTSET to ensure all messages are captured
-logging.getLogger().setLevel(logging.NOTSET)
+log_emitter_provider.add_log_processor(BatchLogProcessor(exporter))
+log_emitter = log_emitter_provider.get_log_emitter(__name__, "0.1")
+handler = OTLPHandler(level=logging.NOTSET, log_emitter=log_emitter)
 
 # Attach OTLP handler to root logger
 logging.getLogger().addHandler(handler)
 
+# Log directly
+logging.info("Jackdaws love my big sphinx of quartz.")
+
 # Create different namespaced loggers
-# It is recommended to not use the root logger with OTLP handler
-# so telemetry is collected only for the application
 logger1 = logging.getLogger("myapp.area1")
 logger2 = logging.getLogger("myapp.area2")
 
@@ -50,10 +52,6 @@ logger1.info("How quickly daft jumping zebras vex.")
 logger2.warning("Jail zesty vixen who grabbed pay from quack.")
 logger2.error("The five boxing wizards jump quickly.")
 
-# Log custom attributes
-# Custom attributes are added on a per event basis
-user_id = "user-123"
-logger1.error("I have custom attributes.", extra={"user_id": user_id})
 
 # Trace context correlation
 tracer = trace.get_tracer(__name__)
@@ -61,4 +59,4 @@ with tracer.start_as_current_span("foo"):
     # Do something
     logger2.error("Hyderabad, we have a major problem.")
 
-logger_provider.shutdown()
+log_emitter_provider.shutdown()

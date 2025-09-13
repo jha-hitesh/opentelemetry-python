@@ -16,9 +16,7 @@ import unittest
 from unittest import mock
 
 import grpc
-from google.protobuf.timestamp_pb2 import (  # pylint: disable=no-name-in-module
-    Timestamp,
-)
+from google.protobuf.timestamp_pb2 import Timestamp
 from opencensus.proto.trace.v1 import trace_pb2
 
 import opentelemetry.exporter.opencensus.util as utils

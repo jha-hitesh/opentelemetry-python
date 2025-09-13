@@ -2,7 +2,7 @@ version: '3'
 
 services:
   otopencensus:
-    image: rafaeljesus/opencensus-collector:latest
+    image: omnition/opencensus-collector:0.1.11
     command: --logging-exporter DEBUG
     ports:
         - "8888:8888"

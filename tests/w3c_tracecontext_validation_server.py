@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+#
 # Copyright The OpenTelemetry Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -70,6 +72,6 @@ def verify_tracecontext():
 
 if __name__ == "__main__":
     try:
-        app.run(debug=False)
+        app.run(debug=True)
     finally:
         span_processor.shutdown()

@@ -26,10 +26,10 @@ Start Jaeger
 .. code-block:: sh
 
     docker run --rm \
-        -p 4317:4317 \
-        -p 4318:4318 \
+        -p 6831:6831/udp \
+        -p 6832:6832/udp \
         -p 16686:16686 \
-        jaegertracing/all-in-one:latest \
+        jaegertracing/all-in-one:1.13 \
         --log-level=debug
 
 Redis
@@ -61,7 +61,7 @@ Alternatively, you can install the Python dependencies separately:
     pip install \
         opentelemetry-api \
         opentelemetry-sdk \
-        opentelemetry-exporter-otlp \
+        opentelemetry-exporter-jaeger \
         opentelemetry-opentracing-shim \
         redis \
         redis_opentracing

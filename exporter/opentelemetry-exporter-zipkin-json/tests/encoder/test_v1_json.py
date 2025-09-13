@@ -14,12 +14,7 @@
 import json
 
 from opentelemetry import trace as trace_api
-from opentelemetry.exporter.zipkin.encoder import (
-    _SCOPE_NAME_KEY,
-    _SCOPE_VERSION_KEY,
-    NAME_KEY,
-    VERSION_KEY,
-)
+from opentelemetry.exporter.zipkin.encoder import NAME_KEY, VERSION_KEY
 from opentelemetry.exporter.zipkin.json.v1 import JsonV1Encoder
 from opentelemetry.exporter.zipkin.node_endpoint import NodeEndpoint
 from opentelemetry.sdk import trace
@@ -28,10 +23,7 @@ from opentelemetry.test.spantestutil import (
 )
 from opentelemetry.trace import TraceFlags, format_span_id, format_trace_id
 
-from .common_tests import (  # pylint: disable=import-error
-    TEST_SERVICE_NAME,
-    CommonEncoderTestCases,
-)
+from .common_tests import TEST_SERVICE_NAME, CommonEncoderTestCases
 
 
 # pylint: disable=protected-access
@@ -41,6 +33,7 @@ class TestV1JsonEncoder(CommonEncoderTestCases.CommonJsonEncoderTest):
         return JsonV1Encoder(*args, **kwargs)
 
     def test_encode(self):
+
         local_endpoint = {"serviceName": TEST_SERVICE_NAME}
 
         otel_spans = self.get_exhaustive_otel_span_list()
@@ -168,16 +161,6 @@ class TestV1JsonEncoder(CommonEncoderTestCases.CommonJsonEncoderTest):
                     },
                     {
                         "key": VERSION_KEY,
-                        "value": "version",
-                        "endpoint": local_endpoint,
-                    },
-                    {
-                        "key": _SCOPE_NAME_KEY,
-                        "value": "name",
-                        "endpoint": local_endpoint,
-                    },
-                    {
-                        "key": _SCOPE_VERSION_KEY,
                         "value": "version",
                         "endpoint": local_endpoint,
                     },

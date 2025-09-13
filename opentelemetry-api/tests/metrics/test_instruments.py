@@ -16,27 +16,24 @@
 from inspect import Signature, isabstract, signature
 from unittest import TestCase
 
-from opentelemetry.metrics import (
+from opentelemetry._metrics import Meter, NoOpMeter
+from opentelemetry._metrics.instrument import (
     Counter,
+    DefaultCounter,
+    DefaultHistogram,
+    DefaultUpDownCounter,
     Histogram,
     Instrument,
-    Meter,
-    NoOpCounter,
-    NoOpHistogram,
-    NoOpMeter,
-    NoOpUpDownCounter,
     ObservableCounter,
     ObservableGauge,
     ObservableUpDownCounter,
     UpDownCounter,
-    _Gauge,
 )
 
 # FIXME Test that the instrument methods can be called concurrently safely.
 
 
 class ChildInstrument(Instrument):
-    # pylint: disable=useless-parent-delegation
     def __init__(self, name, *args, unit="", description="", **kwargs):
         super().__init__(
             name, *args, unit=unit, description=description, **kwargs
@@ -97,7 +94,7 @@ class TestCounter(TestCase):
 
         self.assertTrue(hasattr(Counter, "add"))
 
-        self.assertIsNone(NoOpCounter("name").add(1))
+        self.assertIsNone(DefaultCounter("name").add(1))
 
         add_signature = signature(Counter.add)
         self.assertIn("attributes", add_signature.parameters.keys())
@@ -121,7 +118,7 @@ class TestObservableCounter(TestCase):
         self.assertTrue(
             isinstance(
                 NoOpMeter("name").create_observable_counter(
-                    "name", callbacks=[callback()]
+                    "name", callback()
                 ),
                 ObservableCounter,
             )
@@ -137,7 +134,7 @@ class TestObservableCounter(TestCase):
     def test_create_observable_counter_api(self):
         """
         Test that the API for creating a observable_counter accepts the name of the instrument.
-        Test that the API for creating a observable_counter accepts a sequence of callbacks.
+        Test that the API for creating a observable_counter accepts a callback.
         Test that the API for creating a observable_counter accepts the unit of the instrument.
         Test that the API for creating a observable_counter accepts the description of the instrument
         """
@@ -156,13 +153,11 @@ class TestObservableCounter(TestCase):
             Meter.create_observable_counter
         )
         self.assertIn(
-            "callbacks", create_observable_counter_signature.parameters.keys()
+            "callback", create_observable_counter_signature.parameters.keys()
         )
         self.assertIs(
-            create_observable_counter_signature.parameters[
-                "callbacks"
-            ].default,
-            None,
+            create_observable_counter_signature.parameters["callback"].default,
+            Signature.empty,
         )
         create_observable_counter_signature = signature(
             Meter.create_observable_counter
@@ -201,7 +196,7 @@ class TestObservableCounter(TestCase):
             Meter.create_observable_counter
         )
         self.assertIn(
-            "callbacks", create_observable_counter_signature.parameters.keys()
+            "callback", create_observable_counter_signature.parameters.keys()
         )
         self.assertIs(
             create_observable_counter_signature.parameters["name"].default,
@@ -265,7 +260,7 @@ class TestHistogram(TestCase):
 
         self.assertTrue(hasattr(Histogram, "record"))
 
-        self.assertIsNone(NoOpHistogram("name").record(1))
+        self.assertIsNone(DefaultHistogram("name").record(1))
 
         record_signature = signature(Histogram.record)
         self.assertIn("attributes", record_signature.parameters.keys())
@@ -276,51 +271,7 @@ class TestHistogram(TestCase):
             record_signature.parameters["amount"].default, Signature.empty
         )
 
-        self.assertIsNone(NoOpHistogram("name").record(1))
-
-
-class TestGauge(TestCase):
-    def test_create_gauge(self):
-        """
-        Test that the Gauge can be created with create_gauge.
-        """
-
-        self.assertTrue(
-            isinstance(NoOpMeter("name").create_gauge("name"), _Gauge)
-        )
-
-    def test_api_gauge_abstract(self):
-        """
-        Test that the API Gauge is an abstract class.
-        """
-
-        self.assertTrue(isabstract(_Gauge))
-
-    def test_create_gauge_api(self):
-        """
-        Test that the API for creating a gauge accepts the name of the instrument.
-        Test that the API for creating a gauge accepts a sequence of callbacks.
-        Test that the API for creating a gauge accepts the unit of the instrument.
-        Test that the API for creating a gauge accepts the description of the instrument
-        """
-
-        create_gauge_signature = signature(Meter.create_gauge)
-        self.assertIn("name", create_gauge_signature.parameters.keys())
-        self.assertIs(
-            create_gauge_signature.parameters["name"].default,
-            Signature.empty,
-        )
-        create_gauge_signature = signature(Meter.create_gauge)
-        create_gauge_signature = signature(Meter.create_gauge)
-        self.assertIn("unit", create_gauge_signature.parameters.keys())
-        self.assertIs(create_gauge_signature.parameters["unit"].default, "")
-
-        create_gauge_signature = signature(Meter.create_gauge)
-        self.assertIn("description", create_gauge_signature.parameters.keys())
-        self.assertIs(
-            create_gauge_signature.parameters["description"].default,
-            "",
-        )
+        self.assertIsNone(DefaultHistogram("name").record(1))
 
 
 class TestObservableGauge(TestCase):
@@ -334,9 +285,7 @@ class TestObservableGauge(TestCase):
 
         self.assertTrue(
             isinstance(
-                NoOpMeter("name").create_observable_gauge(
-                    "name", [callback()]
-                ),
+                NoOpMeter("name").create_observable_gauge("name", callback()),
                 ObservableGauge,
             )
         )
@@ -351,7 +300,7 @@ class TestObservableGauge(TestCase):
     def test_create_observable_gauge_api(self):
         """
         Test that the API for creating a observable_gauge accepts the name of the instrument.
-        Test that the API for creating a observable_gauge accepts a sequence of callbacks.
+        Test that the API for creating a observable_gauge accepts a callback.
         Test that the API for creating a observable_gauge accepts the unit of the instrument.
         Test that the API for creating a observable_gauge accepts the description of the instrument
         """
@@ -370,11 +319,11 @@ class TestObservableGauge(TestCase):
             Meter.create_observable_gauge
         )
         self.assertIn(
-            "callbacks", create_observable_gauge_signature.parameters.keys()
+            "callback", create_observable_gauge_signature.parameters.keys()
         )
         self.assertIs(
-            create_observable_gauge_signature.parameters["callbacks"].default,
-            None,
+            create_observable_gauge_signature.parameters["callback"].default,
+            Signature.empty,
         )
         create_observable_gauge_signature = signature(
             Meter.create_observable_gauge
@@ -401,7 +350,7 @@ class TestObservableGauge(TestCase):
 
     def test_observable_gauge_callback(self):
         """
-        Test that the API for creating a asynchronous gauge accepts a sequence of callbacks.
+        Test that the API for creating a asynchronous gauge accepts a callback.
         Test that the callback function reports measurements.
         Test that there is a way to pass state to the callback.
         """
@@ -410,7 +359,7 @@ class TestObservableGauge(TestCase):
             Meter.create_observable_gauge
         )
         self.assertIn(
-            "callbacks", create_observable_gauge_signature.parameters.keys()
+            "callback", create_observable_gauge_signature.parameters.keys()
         )
         self.assertIs(
             create_observable_gauge_signature.parameters["name"].default,
@@ -488,7 +437,7 @@ class TestUpDownCounter(TestCase):
 
         self.assertTrue(hasattr(UpDownCounter, "add"))
 
-        self.assertIsNone(NoOpUpDownCounter("name").add(1))
+        self.assertIsNone(DefaultUpDownCounter("name").add(1))
 
         add_signature = signature(UpDownCounter.add)
         self.assertIn("attributes", add_signature.parameters.keys())
@@ -501,7 +450,6 @@ class TestUpDownCounter(TestCase):
 
 
 class TestObservableUpDownCounter(TestCase):
-    # pylint: disable=protected-access
     def test_create_observable_up_down_counter(self):
         """
         Test that the ObservableUpDownCounter can be created with create_observable_up_down_counter.
@@ -513,7 +461,7 @@ class TestObservableUpDownCounter(TestCase):
         self.assertTrue(
             isinstance(
                 NoOpMeter("name").create_observable_up_down_counter(
-                    "name", [callback()]
+                    "name", callback()
                 ),
                 ObservableUpDownCounter,
             )
@@ -529,7 +477,7 @@ class TestObservableUpDownCounter(TestCase):
     def test_create_observable_up_down_counter_api(self):
         """
         Test that the API for creating a observable_up_down_counter accepts the name of the instrument.
-        Test that the API for creating a observable_up_down_counter accepts a sequence of callbacks.
+        Test that the API for creating a observable_up_down_counter accepts a callback.
         Test that the API for creating a observable_up_down_counter accepts the unit of the instrument.
         Test that the API for creating a observable_up_down_counter accepts the description of the instrument
         """
@@ -551,14 +499,14 @@ class TestObservableUpDownCounter(TestCase):
             Meter.create_observable_up_down_counter
         )
         self.assertIn(
-            "callbacks",
+            "callback",
             create_observable_up_down_counter_signature.parameters.keys(),
         )
         self.assertIs(
             create_observable_up_down_counter_signature.parameters[
-                "callbacks"
+                "callback"
             ].default,
-            None,
+            Signature.empty,
         )
         create_observable_up_down_counter_signature = signature(
             Meter.create_observable_up_down_counter
@@ -590,7 +538,7 @@ class TestObservableUpDownCounter(TestCase):
 
     def test_observable_up_down_counter_callback(self):
         """
-        Test that the API for creating a asynchronous up_down_counter accepts a sequence of callbacks.
+        Test that the API for creating a asynchronous up_down_counter accepts a callback.
         Test that the callback function reports measurements.
         Test that there is a way to pass state to the callback.
         Test that the instrument accepts positive and negative values.
@@ -600,7 +548,7 @@ class TestObservableUpDownCounter(TestCase):
             Meter.create_observable_up_down_counter
         )
         self.assertIn(
-            "callbacks",
+            "callback",
             create_observable_up_down_counter_signature.parameters.keys(),
         )
         self.assertIs(
@@ -608,119 +556,4 @@ class TestObservableUpDownCounter(TestCase):
                 "name"
             ].default,
             Signature.empty,
-        )
-
-    def test_name_check(self):
-        instrument = ChildInstrument("name")
-
-        self.assertEqual(
-            instrument._check_name_unit_description(
-                "a" * 255, "unit", "description"
-            )["name"],
-            "a" * 255,
-        )
-        self.assertEqual(
-            instrument._check_name_unit_description(
-                "a.", "unit", "description"
-            )["name"],
-            "a.",
-        )
-        self.assertEqual(
-            instrument._check_name_unit_description(
-                "a-", "unit", "description"
-            )["name"],
-            "a-",
-        )
-        self.assertEqual(
-            instrument._check_name_unit_description(
-                "a_", "unit", "description"
-            )["name"],
-            "a_",
-        )
-        self.assertEqual(
-            instrument._check_name_unit_description(
-                "a/", "unit", "description"
-            )["name"],
-            "a/",
-        )
-
-        # the old max length
-        self.assertIsNotNone(
-            instrument._check_name_unit_description(
-                "a" * 64, "unit", "description"
-            )["name"]
-        )
-        self.assertIsNone(
-            instrument._check_name_unit_description(
-                "a" * 256, "unit", "description"
-            )["name"]
-        )
-        self.assertIsNone(
-            instrument._check_name_unit_description(
-                "Ñ", "unit", "description"
-            )["name"]
-        )
-        self.assertIsNone(
-            instrument._check_name_unit_description(
-                "_a", "unit", "description"
-            )["name"]
-        )
-        self.assertIsNone(
-            instrument._check_name_unit_description(
-                "1a", "unit", "description"
-            )["name"]
-        )
-        self.assertIsNone(
-            instrument._check_name_unit_description("", "unit", "description")[
-                "name"
-            ]
-        )
-
-    def test_unit_check(self):
-        instrument = ChildInstrument("name")
-
-        self.assertEqual(
-            instrument._check_name_unit_description(
-                "name", "a" * 63, "description"
-            )["unit"],
-            "a" * 63,
-        )
-        self.assertEqual(
-            instrument._check_name_unit_description(
-                "name", "{a}", "description"
-            )["unit"],
-            "{a}",
-        )
-
-        self.assertIsNone(
-            instrument._check_name_unit_description(
-                "name", "a" * 64, "description"
-            )["unit"]
-        )
-        self.assertIsNone(
-            instrument._check_name_unit_description(
-                "name", "Ñ", "description"
-            )["unit"]
-        )
-        self.assertEqual(
-            instrument._check_name_unit_description(
-                "name", None, "description"
-            )["unit"],
-            "",
-        )
-
-    def test_description_check(self):
-        instrument = ChildInstrument("name")
-
-        self.assertEqual(
-            instrument._check_name_unit_description(
-                "name", "unit", "description"
-            )["description"],
-            "description",
-        )
-        self.assertEqual(
-            instrument._check_name_unit_description("name", "unit", None)[
-                "description"
-            ],
-            "",
         )

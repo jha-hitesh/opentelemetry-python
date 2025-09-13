@@ -1,61 +1,42 @@
 #!/bin/bash
-set -ex
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-ROOT_DIR="${SCRIPT_DIR}/../.."
+ROOT_DIR="${SCRIPT_DIR}/../../"
 
 # freeze the spec version to make SemanticAttributes generation reproducible
-SEMCONV_VERSION=1.37.0
-SEMCONV_VERSION_TAG=v$SEMCONV_VERSION
-OTEL_WEAVER_IMG_VERSION=v0.17.0
-INCUBATING_DIR=_incubating
+SPEC_VERSION=v1.6.1
+OTEL_SEMCONV_GEN_IMG_VERSION=0.5.0
+
 cd ${SCRIPT_DIR}
 
-rm -rf semantic-conventions || true
-mkdir semantic-conventions
-cd semantic-conventions
+rm -rf opentelemetry-specification || true
+mkdir opentelemetry-specification
+cd opentelemetry-specification
 
 git init
-git remote add origin https://github.com/open-telemetry/semantic-conventions.git
-git fetch origin "$SEMCONV_VERSION_TAG"
+git remote add origin https://github.com/open-telemetry/opentelemetry-specification.git
+git fetch origin "$SPEC_VERSION"
 git reset --hard FETCH_HEAD
 cd ${SCRIPT_DIR}
 
-# Check new schema version was added to schemas.py manually
-SCHEMAS_PY_PATH=${ROOT_DIR}/opentelemetry-semantic-conventions/src/opentelemetry/semconv/schemas.py
+docker run --rm \
+  -v ${SCRIPT_DIR}/opentelemetry-specification/semantic_conventions/trace:/source \
+  -v ${SCRIPT_DIR}/templates:/templates \
+  -v ${ROOT_DIR}/opentelemetry-semantic-conventions/src/opentelemetry/semconv/trace/:/output \
+  otel/semconvgen:$OTEL_SEMCONV_GEN_IMG_VERSION \
+  -f /source code \
+  --template /templates/semantic_attributes.j2 \
+  --output /output/__init__.py \
+  -Dclass=SpanAttributes
 
-if ! grep -q $SEMCONV_VERSION "$SCHEMAS_PY_PATH"; then
-  echo "Error: schema version $SEMCONV_VERSION is not found in $SCHEMAS_PY_PATH. Please add it manually."
-  exit 1
-fi
-
-generate() {
-  TARGET=$1
-  OUTPUT=$2
-  FILTER=$3
-  docker run --rm \
-    -v ${SCRIPT_DIR}/semantic-conventions/model:/source \
-    -v ${SCRIPT_DIR}/templates:/templates \
-    -v ${ROOT_DIR}/opentelemetry-semantic-conventions/src/opentelemetry/semconv/:/output \
-    otel/weaver:$OTEL_WEAVER_IMG_VERSION \
-    registry \
-    generate \
-    --registry=/source \
-    --templates=/templates \
-    ${TARGET} \
-    /output/${TARGET} \
-    --param output=${OUTPUT} \
-    --param filter=${FILTER}
-}
-
-# stable attributes and metrics
-mkdir -p ${ROOT_DIR}/opentelemetry-semantic-conventions/src/opentelemetry/semconv/attributes
-mkdir -p ${ROOT_DIR}/opentelemetry-semantic-conventions/src/opentelemetry/semconv/metrics
-generate "./" "./" "stable"
-
-mkdir -p ${ROOT_DIR}/opentelemetry-semantic-conventions/src/opentelemetry/semconv/${INCUBATING_DIR}/attributes
-mkdir -p ${ROOT_DIR}/opentelemetry-semantic-conventions/src/opentelemetry/semconv/${INCUBATING_DIR}/metrics
-generate "./" "./${INCUBATING_DIR}/" "any"
+docker run --rm \
+  -v ${SCRIPT_DIR}/opentelemetry-specification/semantic_conventions/resource:/source \
+  -v ${SCRIPT_DIR}/templates:/templates \
+  -v ${ROOT_DIR}/opentelemetry-semantic-conventions/src/opentelemetry/semconv/resource/:/output \
+  otel/semconvgen:$OTEL_SEMCONV_GEN_IMG_VERSION \
+  -f /source code \
+  --template /templates/semantic_attributes.j2 \
+  --output /output/__init__.py \
+  -Dclass=ResourceAttributes
 
 cd "$ROOT_DIR"
-tox -e ruff

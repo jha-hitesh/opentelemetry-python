@@ -10,18 +10,13 @@ on:
     branches:
       - main
 
-permissions:
-  contents: read
-
 jobs:
   changelog:
     runs-on: ubuntu-latest
-    if: |
-      !contains(github.event.pull_request.labels.*.name, 'Skip Changelog')
-      && github.actor != 'otelbot[bot]'
+    if: "!contains(github.event.pull_request.labels.*.name, 'Skip Changelog')"
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v2
 
       - name: Check for CHANGELOG changes
         run: |

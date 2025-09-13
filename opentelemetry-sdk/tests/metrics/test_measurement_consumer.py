@@ -12,27 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# pylint: disable=invalid-name,no-self-use
-
-from time import sleep
 from unittest import TestCase
 from unittest.mock import MagicMock, Mock, patch
 
-from opentelemetry.sdk.metrics._internal.measurement_consumer import (
+from opentelemetry.sdk._metrics.measurement_consumer import (
     MeasurementConsumer,
     SynchronousMeasurementConsumer,
 )
-from opentelemetry.sdk.metrics._internal.sdk_configuration import (
-    SdkConfiguration,
-)
+from opentelemetry.sdk._metrics.point import AggregationTemporality
+from opentelemetry.sdk._metrics.sdk_configuration import SdkConfiguration
 
 
-@patch(
-    "opentelemetry.sdk.metrics._internal."
-    "measurement_consumer.MetricReaderStorage"
-)
+@patch("opentelemetry.sdk._metrics.measurement_consumer.MetricReaderStorage")
 class TestSynchronousMeasurementConsumer(TestCase):
     def test_parent(self, _):
+
         self.assertIsInstance(
             SynchronousMeasurementConsumer(MagicMock()), MeasurementConsumer
         )
@@ -41,12 +35,7 @@ class TestSynchronousMeasurementConsumer(TestCase):
         """It should create one MetricReaderStorage per metric reader passed in the SdkConfiguration"""
         reader_mocks = [Mock() for _ in range(5)]
         SynchronousMeasurementConsumer(
-            SdkConfiguration(
-                exemplar_filter=Mock(),
-                resource=Mock(),
-                metric_readers=reader_mocks,
-                views=Mock(),
-            )
+            SdkConfiguration(resource=Mock(), metric_readers=reader_mocks)
         )
         self.assertEqual(len(MockMetricReaderStorage.mock_calls), 5)
 
@@ -58,19 +47,14 @@ class TestSynchronousMeasurementConsumer(TestCase):
         MockMetricReaderStorage.side_effect = reader_storage_mocks
 
         consumer = SynchronousMeasurementConsumer(
-            SdkConfiguration(
-                exemplar_filter=Mock(should_sample=Mock(return_value=False)),
-                resource=Mock(),
-                metric_readers=reader_mocks,
-                views=Mock(),
-            )
+            SdkConfiguration(resource=Mock(), metric_readers=reader_mocks)
         )
         measurement_mock = Mock()
         consumer.consume_measurement(measurement_mock)
 
         for rs_mock in reader_storage_mocks:
             rs_mock.consume_measurement.assert_called_once_with(
-                measurement_mock, False
+                measurement_mock
             )
 
     def test_collect_passed_to_reader_stage(self, MockMetricReaderStorage):
@@ -80,115 +64,27 @@ class TestSynchronousMeasurementConsumer(TestCase):
         MockMetricReaderStorage.side_effect = reader_storage_mocks
 
         consumer = SynchronousMeasurementConsumer(
-            SdkConfiguration(
-                exemplar_filter=Mock(),
-                resource=Mock(),
-                metric_readers=reader_mocks,
-                views=Mock(),
-            )
+            SdkConfiguration(resource=Mock(), metric_readers=reader_mocks)
         )
         for r_mock, rs_mock in zip(reader_mocks, reader_storage_mocks):
             rs_mock.collect.assert_not_called()
-            consumer.collect(r_mock)
-            rs_mock.collect.assert_called_once_with()
-
-    def test_collect_calls_async_instruments(self, MockMetricReaderStorage):
-        """Its collect() method should invoke async instruments and pass measurements to the
-        corresponding metric reader storage"""
-        reader_mock = Mock()
-        reader_storage_mock = Mock()
-        MockMetricReaderStorage.return_value = reader_storage_mock
-        consumer = SynchronousMeasurementConsumer(
-            SdkConfiguration(
-                exemplar_filter=Mock(should_sample=Mock(return_value=False)),
-                resource=Mock(),
-                metric_readers=[reader_mock],
-                views=Mock(),
+            consumer.collect(r_mock, AggregationTemporality.CUMULATIVE)
+            rs_mock.collect.assert_called_once_with(
+                AggregationTemporality.CUMULATIVE
             )
+
+    def test_collect_calls_async_instruments(self, _):
+        """Its collect() method should invoke async instruments"""
+        reader_mock = Mock()
+        consumer = SynchronousMeasurementConsumer(
+            SdkConfiguration(resource=Mock(), metric_readers=[reader_mock])
         )
         async_instrument_mocks = [MagicMock() for _ in range(5)]
         for i_mock in async_instrument_mocks:
-            i_mock.callback.return_value = [Mock()]
             consumer.register_asynchronous_instrument(i_mock)
 
-        consumer.collect(reader_mock)
+        consumer.collect(reader_mock, AggregationTemporality.CUMULATIVE)
 
         # it should call async instruments
         for i_mock in async_instrument_mocks:
             i_mock.callback.assert_called_once()
-
-        # it should pass measurements to reader storage
-        self.assertEqual(
-            len(reader_storage_mock.consume_measurement.mock_calls), 5
-        )
-        # assert consume_measurement was called with at least 2 arguments the second
-        # matching the mocked exemplar filter
-        self.assertFalse(reader_storage_mock.consume_measurement.call_args[1])
-
-    def test_collect_timeout(self, MockMetricReaderStorage):
-        reader_mock = Mock()
-        reader_storage_mock = Mock()
-        MockMetricReaderStorage.return_value = reader_storage_mock
-        consumer = SynchronousMeasurementConsumer(
-            SdkConfiguration(
-                exemplar_filter=Mock(),
-                resource=Mock(),
-                metric_readers=[reader_mock],
-                views=Mock(),
-            )
-        )
-
-        def sleep_1(*args, **kwargs):
-            sleep(1)
-
-        consumer.register_asynchronous_instrument(
-            Mock(**{"callback.side_effect": sleep_1})
-        )
-
-        with self.assertRaises(Exception) as error:
-            consumer.collect(reader_mock, timeout_millis=10)
-
-        self.assertIn(
-            "Timed out while executing callback", error.exception.args[0]
-        )
-
-    @patch(
-        "opentelemetry.sdk.metrics._internal."
-        "measurement_consumer.CallbackOptions"
-    )
-    def test_collect_deadline(
-        self, mock_callback_options, MockMetricReaderStorage
-    ):
-        reader_mock = Mock()
-        reader_storage_mock = Mock()
-        MockMetricReaderStorage.return_value = reader_storage_mock
-        consumer = SynchronousMeasurementConsumer(
-            SdkConfiguration(
-                exemplar_filter=Mock(),
-                resource=Mock(),
-                metric_readers=[reader_mock],
-                views=Mock(),
-            )
-        )
-
-        def sleep_1(*args, **kwargs):
-            sleep(1)
-            return []
-
-        consumer.register_asynchronous_instrument(
-            Mock(**{"callback.side_effect": sleep_1})
-        )
-        consumer.register_asynchronous_instrument(
-            Mock(**{"callback.side_effect": sleep_1})
-        )
-
-        consumer.collect(reader_mock)
-
-        callback_options_time_call = mock_callback_options.mock_calls[
-            -1
-        ].kwargs["timeout_millis"]
-
-        self.assertLess(
-            callback_options_time_call,
-            10000,
-        )

@@ -97,17 +97,9 @@ nitpicky = True
 # https://github.com/sphinx-doc/sphinx/pull/3744
 nitpick_ignore = [
     ("py:class", "ValueT"),
-    ("py:class", "CarrierT"),
-    ("py:obj", "opentelemetry.propagators.textmap.CarrierT"),
-    ("py:obj", "Union"),
-    (
-        "py:class",
-        "opentelemetry.sdk.metrics._internal.instrument._Synchronous",
-    ),
-    (
-        "py:class",
-        "opentelemetry.sdk.metrics._internal.instrument._Asynchronous",
-    ),
+    ("py:class", "MetricT"),
+    ("py:class", "InstrumentT"),
+    ("py:obj", "opentelemetry._metrics.instrument.InstrumentT"),
     # Even if wrapt is added to intersphinx_mapping, sphinx keeps failing
     # with "class reference target not found: ObjectProxy".
     ("py:class", "ObjectProxy"),
@@ -115,48 +107,22 @@ nitpick_ignore = [
         "py:class",
         "opentelemetry.trace._LinkBase",
     ),
+    # TODO: Understand why sphinx is not able to find this local class
     (
         "py:class",
-        "opentelemetry.exporter.otlp.proto.grpc.exporter.OTLPExporterMixin",
+        "opentelemetry.propagators.textmap.TextMapPropagator",
     ),
     (
         "py:class",
-        "opentelemetry.proto.collector.trace.v1.trace_service_pb2.ExportTraceServiceRequest",
+        "opentelemetry.propagators.textmap.DefaultGetter",
     ),
     (
-        "py:class",
-        "opentelemetry.exporter.otlp.proto.common._internal.metrics_encoder.OTLPMetricExporterMixin",
-    ),
-    ("py:class", "opentelemetry.proto.resource.v1.resource_pb2.Resource"),
-    (
-        "py:class",
-        "opentelemetry.proto.collector.metrics.v1.metrics_service_pb2.ExportMetricsServiceRequest",
-    ),
-    ("py:class", "opentelemetry.sdk._logs._internal.export.LogExporter"),
-    ("py:class", "opentelemetry.sdk._logs._internal.export.LogExportResult"),
-    (
-        "py:class",
-        "opentelemetry.proto.collector.logs.v1.logs_service_pb2.ExportLogsServiceRequest",
+        "any",
+        "opentelemetry.propagators.textmap.TextMapPropagator.extract",
     ),
     (
-        "py:class",
-        "opentelemetry.sdk.metrics._internal.exemplar.exemplar_reservoir.FixedSizeExemplarReservoirABC",
-    ),
-    (
-        "py:class",
-        "opentelemetry.sdk.metrics._internal.exemplar.exemplar.Exemplar",
-    ),
-    (
-        "py:class",
-        "opentelemetry.sdk.metrics._internal.aggregation._Aggregation",
-    ),
-    (
-        "py:class",
-        "_contextvars.Token",
-    ),
-    (
-        "py:class",
-        "AnyValue",
+        "any",
+        "opentelemetry.propagators.textmap.TextMapPropagator.inject",
     ),
 ]
 
@@ -176,14 +142,11 @@ exclude_patterns = [
     "examples/error_handler/error_handler_1",
 ]
 
-_exclude_members = ["_abc_impl"]
-
 autodoc_default_options = {
     "members": True,
     "undoc-members": True,
     "show-inheritance": True,
     "member-order": "bysource",
-    "exclude-members": ",".join(_exclude_members),
 }
 
 # -- Options for HTML output -------------------------------------------------
@@ -212,21 +175,12 @@ rst_epilog = """
 .. |SCM_WEB| replace:: {s}
 .. |SCM_RAW_WEB| replace:: {sr}
 .. |SCM_BRANCH| replace:: {b}
-""".format(s=scm_web, sr=scm_raw_web, b=branch)
+""".format(
+    s=scm_web, sr=scm_raw_web, b=branch
+)
 
 # used to have links to repo files
 extlinks = {
     "scm_raw_web": (scm_raw_web + "/%s", "scm_raw_web"),
     "scm_web": (scm_web + "/%s", "scm_web"),
 }
-
-
-def on_missing_reference(app, env, node, contnode):
-    # FIXME Remove when opentelemetry.metrics._Gauge is renamed to
-    # opentelemetry.metrics.Gauge
-    if node["reftarget"] == "opentelemetry.metrics.Gauge":
-        return contnode
-
-
-def setup(app):
-    app.connect("missing-reference", on_missing_reference)

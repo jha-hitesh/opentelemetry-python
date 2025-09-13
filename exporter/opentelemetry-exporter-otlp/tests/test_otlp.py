@@ -12,11 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import unittest
 
 from opentelemetry.exporter.otlp.proto.grpc._log_exporter import (
     OTLPLogExporter,
 )
-from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import (
+from opentelemetry.exporter.otlp.proto.grpc._metric_exporter import (
     OTLPMetricExporter,
 )
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import (
@@ -25,10 +26,9 @@ from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import (
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
     OTLPSpanExporter as HTTPSpanExporter,
 )
-from opentelemetry.test import TestCase
 
 
-class TestOTLPExporters(TestCase):
+class TestOTLPExporters(unittest.TestCase):
     def test_constructors(self):
         for exporter in [
             OTLPSpanExporter,
@@ -36,5 +36,9 @@ class TestOTLPExporters(TestCase):
             OTLPLogExporter,
             OTLPMetricExporter,
         ]:
-            with self.assertNotRaises(Exception):
+            try:
                 exporter()
+            except Exception:  # pylint: disable=broad-except
+                self.fail(
+                    f"Unexpected exception raised when instantiating {exporter.__name__}"
+                )

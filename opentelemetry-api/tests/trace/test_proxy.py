@@ -18,13 +18,7 @@ import unittest
 
 from opentelemetry import trace
 from opentelemetry.test.globals_test import TraceGlobalsTest
-from opentelemetry.trace.span import (
-    INVALID_SPAN_CONTEXT,
-    NonRecordingSpan,
-    Span,
-)
-from opentelemetry.util._decorator import _agnosticcontextmanager
-from opentelemetry.util.types import Attributes
+from opentelemetry.trace.span import INVALID_SPAN_CONTEXT, NonRecordingSpan
 
 
 class TestProvider(trace.NoOpTracerProvider):
@@ -33,22 +27,16 @@ class TestProvider(trace.NoOpTracerProvider):
         instrumenting_module_name: str,
         instrumenting_library_version: typing.Optional[str] = None,
         schema_url: typing.Optional[str] = None,
-        attributes: typing.Optional[Attributes] = None,
     ) -> trace.Tracer:
         return TestTracer()
 
 
 class TestTracer(trace.NoOpTracer):
     def start_span(self, *args, **kwargs):
-        return SpanTest(INVALID_SPAN_CONTEXT)
-
-    @_agnosticcontextmanager  # pylint: disable=protected-access
-    def start_as_current_span(self, *args, **kwargs):  # type: ignore
-        with trace.use_span(self.start_span(*args, **kwargs)) as span:  # type: ignore
-            yield span
+        return TestSpan(INVALID_SPAN_CONTEXT)
 
 
-class SpanTest(NonRecordingSpan):
+class TestSpan(NonRecordingSpan):
     pass
 
 
@@ -84,22 +72,4 @@ class TestProxy(TraceGlobalsTest, unittest.TestCase):
         # reference to old proxy tracer now delegates to a real tracer and
         # creates real spans
         with tracer.start_span("") as span:
-            self.assertIsInstance(span, SpanTest)
-
-    def test_late_config(self):
-        # get a tracer and instrument a function as we would at the
-        # root of a module
-        tracer = trace.get_tracer("test")
-
-        @tracer.start_as_current_span("span")
-        def my_function() -> Span:
-            return trace.get_current_span()
-
-        # call function before configuring tracing provider, should
-        # return INVALID_SPAN from the NoOpTracer
-        self.assertEqual(my_function(), trace.INVALID_SPAN)
-
-        # configure tracing provider
-        trace.set_tracer_provider(TestProvider())
-        # call function again, we should now be getting a TestSpan
-        self.assertIsInstance(my_function(), SpanTest)
+            self.assertIsInstance(span, TestSpan)

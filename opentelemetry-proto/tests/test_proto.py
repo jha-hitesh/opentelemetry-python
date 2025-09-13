@@ -13,11 +13,15 @@
 # limitations under the License.
 # type: ignore
 
-from importlib.util import find_spec
 from unittest import TestCase
+
+from pkg_resources import DistributionNotFound, require
 
 
 class TestInstrumentor(TestCase):
     def test_proto(self):
-        if find_spec("opentelemetry.proto") is None:
+
+        try:
+            require(["opentelemetry-proto"])
+        except DistributionNotFound:
             self.fail("opentelemetry-proto not installed")
