@@ -251,7 +251,6 @@ class TestSampler(unittest.TestCase):
         )
 
     def test_probability_sampler_limits(self):
-
         # Sample one of every 2^64 (= 5e-20) traces. This is the lowest
         # possible meaningful sampling rate, only traces with trace ID 0x0
         # should get sampled.
@@ -311,7 +310,7 @@ class TestSampler(unittest.TestCase):
                 None, 0xFFFFFFFFFFFFFFFF, "span name"
             ).decision.is_sampled()
         )
-        # Check that the higest effective sampling rate is actually lower than
+        # Check that the highest effective sampling rate is actually lower than
         # the highest theoretical sampling rate. If this test fails the test
         # above is wrong.
         self.assertLess(

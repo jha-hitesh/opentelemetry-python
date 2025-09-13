@@ -16,10 +16,10 @@ import io
 import wsgiref.util as wsgiref_util
 
 from opentelemetry import trace
-from opentelemetry.test.spantestutil import SpanTestBase
+from opentelemetry.test.test_base import TestBase
 
 
-class WsgiTestBase(SpanTestBase):
+class WsgiTestBase(TestBase):
     def setUp(self):
         super().setUp()
 
@@ -39,9 +39,7 @@ class WsgiTestBase(SpanTestBase):
         self.exc_info = exc_info
         return self.write
 
-    def assertTraceResponseHeaderMatchesSpan(
-        self, headers, span
-    ):  # pylint: disable=invalid-name
+    def assertTraceResponseHeaderMatchesSpan(self, headers, span):  # pylint: disable=invalid-name
         self.assertIn("traceresponse", headers)
         self.assertEqual(
             headers["access-control-expose-headers"],

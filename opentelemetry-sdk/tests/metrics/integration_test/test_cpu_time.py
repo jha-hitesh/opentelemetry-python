@@ -14,15 +14,25 @@
 # type: ignore
 
 import io
-from typing import Generator, Iterable
+from typing import Generator, Iterable, List
 from unittest import TestCase
+from unittest.mock import Mock, patch
 
-from opentelemetry._metrics.measurement import Measurement
-from opentelemetry.sdk._metrics import MeterProvider
+from opentelemetry.context import Context
+from opentelemetry.metrics import CallbackOptions, Instrument, Observation
+from opentelemetry.sdk.metrics import MeterProvider
+from opentelemetry.sdk.metrics._internal.measurement import Measurement
 
 # FIXME Test that the instrument methods can be called concurrently safely.
 
+TEST_TIMESTAMP = 1_234_567_890
+TEST_CONTEXT = Context()
 
+
+@patch(
+    "opentelemetry.sdk.metrics._internal.instrument.time_ns",
+    Mock(return_value=TEST_TIMESTAMP),
+)
 class TestCpuTimeIntegration(TestCase):
     """Integration test of scraping CPU time from proc stat with an observable
     counter"""
@@ -39,78 +49,196 @@ procs_running 2
 procs_blocked 0
 softirq 1644603067 0 166540056 208 309152755 8936439 0 1354908 935642970 13 222975718\n"""
 
-    measurements_expected = [
-        Measurement(6150, {"cpu": "cpu0", "state": "user"}),
-        Measurement(3177, {"cpu": "cpu0", "state": "nice"}),
-        Measurement(5946, {"cpu": "cpu0", "state": "system"}),
-        Measurement(891264, {"cpu": "cpu0", "state": "idle"}),
-        Measurement(1296, {"cpu": "cpu0", "state": "iowait"}),
-        Measurement(0, {"cpu": "cpu0", "state": "irq"}),
-        Measurement(8343, {"cpu": "cpu0", "state": "softirq"}),
-        Measurement(421, {"cpu": "cpu0", "state": "guest"}),
-        Measurement(0, {"cpu": "cpu0", "state": "guest_nice"}),
-        Measurement(5882, {"cpu": "cpu1", "state": "user"}),
-        Measurement(3491, {"cpu": "cpu1", "state": "nice"}),
-        Measurement(6404, {"cpu": "cpu1", "state": "system"}),
-        Measurement(891564, {"cpu": "cpu1", "state": "idle"}),
-        Measurement(1244, {"cpu": "cpu1", "state": "iowait"}),
-        Measurement(0, {"cpu": "cpu1", "state": "irq"}),
-        Measurement(2410, {"cpu": "cpu1", "state": "softirq"}),
-        Measurement(418, {"cpu": "cpu1", "state": "guest"}),
-        Measurement(0, {"cpu": "cpu1", "state": "guest_nice"}),
-    ]
+    @staticmethod
+    def create_measurements_expected(
+        instrument: Instrument,
+    ) -> List[Measurement]:
+        return [
+            Measurement(
+                6150.29,
+                TEST_TIMESTAMP,
+                instrument=instrument,
+                context=TEST_CONTEXT,
+                attributes={"cpu": "cpu0", "state": "user"},
+            ),
+            Measurement(
+                3177.46,
+                TEST_TIMESTAMP,
+                instrument=instrument,
+                context=TEST_CONTEXT,
+                attributes={"cpu": "cpu0", "state": "nice"},
+            ),
+            Measurement(
+                5946.01,
+                TEST_TIMESTAMP,
+                instrument=instrument,
+                context=TEST_CONTEXT,
+                attributes={"cpu": "cpu0", "state": "system"},
+            ),
+            Measurement(
+                891264.59,
+                TEST_TIMESTAMP,
+                instrument=instrument,
+                context=TEST_CONTEXT,
+                attributes={"cpu": "cpu0", "state": "idle"},
+            ),
+            Measurement(
+                1296.29,
+                TEST_TIMESTAMP,
+                instrument=instrument,
+                context=TEST_CONTEXT,
+                attributes={"cpu": "cpu0", "state": "iowait"},
+            ),
+            Measurement(
+                0.0,
+                TEST_TIMESTAMP,
+                instrument=instrument,
+                context=TEST_CONTEXT,
+                attributes={"cpu": "cpu0", "state": "irq"},
+            ),
+            Measurement(
+                8343.46,
+                TEST_TIMESTAMP,
+                instrument=instrument,
+                context=TEST_CONTEXT,
+                attributes={"cpu": "cpu0", "state": "softirq"},
+            ),
+            Measurement(
+                421.37,
+                TEST_TIMESTAMP,
+                instrument=instrument,
+                context=TEST_CONTEXT,
+                attributes={"cpu": "cpu0", "state": "guest"},
+            ),
+            Measurement(
+                0,
+                TEST_TIMESTAMP,
+                instrument=instrument,
+                context=TEST_CONTEXT,
+                attributes={"cpu": "cpu0", "state": "guest_nice"},
+            ),
+            Measurement(
+                5882.32,
+                TEST_TIMESTAMP,
+                instrument=instrument,
+                context=TEST_CONTEXT,
+                attributes={"cpu": "cpu1", "state": "user"},
+            ),
+            Measurement(
+                3491.85,
+                TEST_TIMESTAMP,
+                instrument=instrument,
+                context=TEST_CONTEXT,
+                attributes={"cpu": "cpu1", "state": "nice"},
+            ),
+            Measurement(
+                6404.92,
+                TEST_TIMESTAMP,
+                instrument=instrument,
+                context=TEST_CONTEXT,
+                attributes={"cpu": "cpu1", "state": "system"},
+            ),
+            Measurement(
+                891564.11,
+                TEST_TIMESTAMP,
+                instrument=instrument,
+                context=TEST_CONTEXT,
+                attributes={"cpu": "cpu1", "state": "idle"},
+            ),
+            Measurement(
+                1244.85,
+                TEST_TIMESTAMP,
+                instrument=instrument,
+                context=TEST_CONTEXT,
+                attributes={"cpu": "cpu1", "state": "iowait"},
+            ),
+            Measurement(
+                0,
+                TEST_TIMESTAMP,
+                instrument=instrument,
+                context=TEST_CONTEXT,
+                attributes={"cpu": "cpu1", "state": "irq"},
+            ),
+            Measurement(
+                2410.04,
+                TEST_TIMESTAMP,
+                instrument=instrument,
+                context=TEST_CONTEXT,
+                attributes={"cpu": "cpu1", "state": "softirq"},
+            ),
+            Measurement(
+                418.62,
+                TEST_TIMESTAMP,
+                instrument=instrument,
+                context=TEST_CONTEXT,
+                attributes={"cpu": "cpu1", "state": "guest"},
+            ),
+            Measurement(
+                0,
+                TEST_TIMESTAMP,
+                instrument=instrument,
+                context=TEST_CONTEXT,
+                attributes={"cpu": "cpu1", "state": "guest_nice"},
+            ),
+        ]
 
     def test_cpu_time_callback(self):
-        def cpu_time_callback() -> Iterable[Measurement]:
+        def cpu_time_callback(
+            options: CallbackOptions,
+        ) -> Iterable[Observation]:
             procstat = io.StringIO(self.procstat_str)
             procstat.readline()  # skip the first line
             for line in procstat:
                 if not line.startswith("cpu"):
                     break
                 cpu, *states = line.split()
-                yield Measurement(
-                    int(states[0]) // 100, {"cpu": cpu, "state": "user"}
+                yield Observation(
+                    int(states[0]) / 100, {"cpu": cpu, "state": "user"}
                 )
-                yield Measurement(
-                    int(states[1]) // 100, {"cpu": cpu, "state": "nice"}
+                yield Observation(
+                    int(states[1]) / 100, {"cpu": cpu, "state": "nice"}
                 )
-                yield Measurement(
-                    int(states[2]) // 100, {"cpu": cpu, "state": "system"}
+                yield Observation(
+                    int(states[2]) / 100, {"cpu": cpu, "state": "system"}
                 )
-                yield Measurement(
-                    int(states[3]) // 100, {"cpu": cpu, "state": "idle"}
+                yield Observation(
+                    int(states[3]) / 100, {"cpu": cpu, "state": "idle"}
                 )
-                yield Measurement(
-                    int(states[4]) // 100, {"cpu": cpu, "state": "iowait"}
+                yield Observation(
+                    int(states[4]) / 100, {"cpu": cpu, "state": "iowait"}
                 )
-                yield Measurement(
-                    int(states[5]) // 100, {"cpu": cpu, "state": "irq"}
+                yield Observation(
+                    int(states[5]) / 100, {"cpu": cpu, "state": "irq"}
                 )
-                yield Measurement(
-                    int(states[6]) // 100, {"cpu": cpu, "state": "softirq"}
+                yield Observation(
+                    int(states[6]) / 100, {"cpu": cpu, "state": "softirq"}
                 )
-                yield Measurement(
-                    int(states[7]) // 100, {"cpu": cpu, "state": "guest"}
+                yield Observation(
+                    int(states[7]) / 100, {"cpu": cpu, "state": "guest"}
                 )
-                yield Measurement(
-                    int(states[8]) // 100, {"cpu": cpu, "state": "guest_nice"}
+                yield Observation(
+                    int(states[8]) / 100, {"cpu": cpu, "state": "guest_nice"}
                 )
 
         meter = MeterProvider().get_meter("name")
         observable_counter = meter.create_observable_counter(
             "system.cpu.time",
-            cpu_time_callback,
+            callbacks=[cpu_time_callback],
             unit="s",
             description="CPU time",
         )
-        measurements = list(observable_counter._callback())
-        self.assertEqual(measurements, self.measurements_expected)
+        measurements = list(observable_counter.callback(CallbackOptions()))
+        self.assertEqual(
+            measurements, self.create_measurements_expected(observable_counter)
+        )
 
     def test_cpu_time_generator(self):
-        def cpu_time_generator() -> Generator[
-            Iterable[Measurement], None, None
-        ]:
+        def cpu_time_generator() -> (
+            Generator[Iterable[Observation], None, None]
+        ):
+            options = yield
             while True:
+                self.assertIsInstance(options, CallbackOptions)
                 measurements = []
                 procstat = io.StringIO(self.procstat_str)
                 procstat.readline()  # skip the first line
@@ -119,66 +247,70 @@ softirq 1644603067 0 166540056 208 309152755 8936439 0 1354908 935642970 13 2229
                         break
                     cpu, *states = line.split()
                     measurements.append(
-                        Measurement(
-                            int(states[0]) // 100,
+                        Observation(
+                            int(states[0]) / 100,
                             {"cpu": cpu, "state": "user"},
                         )
                     )
                     measurements.append(
-                        Measurement(
-                            int(states[1]) // 100,
+                        Observation(
+                            int(states[1]) / 100,
                             {"cpu": cpu, "state": "nice"},
                         )
                     )
                     measurements.append(
-                        Measurement(
-                            int(states[2]) // 100,
+                        Observation(
+                            int(states[2]) / 100,
                             {"cpu": cpu, "state": "system"},
                         )
                     )
                     measurements.append(
-                        Measurement(
-                            int(states[3]) // 100,
+                        Observation(
+                            int(states[3]) / 100,
                             {"cpu": cpu, "state": "idle"},
                         )
                     )
                     measurements.append(
-                        Measurement(
-                            int(states[4]) // 100,
+                        Observation(
+                            int(states[4]) / 100,
                             {"cpu": cpu, "state": "iowait"},
                         )
                     )
                     measurements.append(
-                        Measurement(
-                            int(states[5]) // 100, {"cpu": cpu, "state": "irq"}
+                        Observation(
+                            int(states[5]) / 100, {"cpu": cpu, "state": "irq"}
                         )
                     )
                     measurements.append(
-                        Measurement(
-                            int(states[6]) // 100,
+                        Observation(
+                            int(states[6]) / 100,
                             {"cpu": cpu, "state": "softirq"},
                         )
                     )
                     measurements.append(
-                        Measurement(
-                            int(states[7]) // 100,
+                        Observation(
+                            int(states[7]) / 100,
                             {"cpu": cpu, "state": "guest"},
                         )
                     )
                     measurements.append(
-                        Measurement(
-                            int(states[8]) // 100,
+                        Observation(
+                            int(states[8]) / 100,
                             {"cpu": cpu, "state": "guest_nice"},
                         )
                     )
-                yield measurements
+                options = yield measurements
 
         meter = MeterProvider().get_meter("name")
         observable_counter = meter.create_observable_counter(
             "system.cpu.time",
-            callback=cpu_time_generator(),
+            callbacks=[cpu_time_generator()],
             unit="s",
             description="CPU time",
         )
-        measurements = list(observable_counter._callback())
-        self.assertEqual(measurements, self.measurements_expected)
+        measurements = list(observable_counter.callback(CallbackOptions()))
+        self.assertEqual(
+            measurements, self.create_measurements_expected(observable_counter)
+        )
+
+    maxDiff = None

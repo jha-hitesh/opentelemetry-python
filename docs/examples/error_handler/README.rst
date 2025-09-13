@@ -6,6 +6,7 @@ Overview
 
 This example shows how to use the global error handler.
 
+The source files of these examples are available :scm_web:`here <docs/examples/error_handler/>`.
 
 Preparation
 -----------
@@ -109,7 +110,7 @@ which just logs the exception to standard logging, as seen here:
     AssertionError
 
 When no exception is raised, the code inside the scope of
-``GlobalErrorHandler`` is exectued normally:
+``GlobalErrorHandler`` is executed normally:
 
 .. code::
 

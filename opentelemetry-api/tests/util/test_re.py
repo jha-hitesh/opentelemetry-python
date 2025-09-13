@@ -16,12 +16,13 @@
 
 import unittest
 
-from opentelemetry.util.re import parse_headers
+from opentelemetry.util.re import parse_env_headers
 
 
 class TestParseHeaders(unittest.TestCase):
-    def test_parse_headers(self):
-        inp = [
+    @staticmethod
+    def _common_test_cases():
+        return [
             # invalid header name
             ("=value", [], True),
             ("}key=value", [], True),
@@ -59,14 +60,59 @@ class TestParseHeaders(unittest.TestCase):
                 True,
             ),
         ]
-        for case in inp:
-            s, expected, warn = case
-            if warn:
-                with self.assertLogs(level="WARNING") as cm:
-                    self.assertEqual(parse_headers(s), dict(expected))
-                    self.assertTrue(
-                        "Header doesn't match the format:"
-                        in cm.records[0].message,
+
+    def test_parse_env_headers(self):
+        inp = self._common_test_cases() + [
+            # invalid header value
+            ("key=value othervalue", [], True),
+        ]
+        for case_ in inp:
+            headers, expected, warn = case_
+            with self.subTest(headers=headers):
+                if warn:
+                    with self.assertLogs(level="WARNING") as cm:
+                        self.assertEqual(
+                            parse_env_headers(headers), dict(expected)
+                        )
+                        self.assertTrue(
+                            "Header format invalid! Header values in environment "
+                            "variables must be URL encoded per the OpenTelemetry "
+                            "Protocol Exporter specification:"
+                            in cm.records[0].message,
+                        )
+                else:
+                    self.assertEqual(
+                        parse_env_headers(headers), dict(expected)
                     )
-            else:
-                self.assertEqual(parse_headers(s), dict(expected))
+
+    def test_parse_env_headers_liberal(self):
+        inp = self._common_test_cases() + [
+            # valid header value
+            ("key=value othervalue", [("key", "value othervalue")], False),
+            (
+                "key=value Other_Value==",
+                [("key", "value Other_Value==")],
+                False,
+            ),
+        ]
+        for case_ in inp:
+            headers, expected, warn = case_
+            with self.subTest(headers=headers):
+                if warn:
+                    with self.assertLogs(level="WARNING") as cm:
+                        self.assertEqual(
+                            parse_env_headers(headers, liberal=True),
+                            dict(expected),
+                        )
+                        self.assertTrue(
+                            "Header format invalid! Header values in environment "
+                            "variables must be URL encoded per the OpenTelemetry "
+                            "Protocol Exporter specification or a comma separated "
+                            "list of name=value occurrences:"
+                            in cm.records[0].message,
+                        )
+                else:
+                    self.assertEqual(
+                        parse_env_headers(headers, liberal=True),
+                        dict(expected),
+                    )

@@ -14,7 +14,7 @@
 import logging
 import typing
 
-from deprecated import deprecated
+from typing_extensions import deprecated
 
 from opentelemetry.context.context import Context
 from opentelemetry.propagators import textmap
@@ -39,7 +39,7 @@ class CompositePropagator(textmap.TextMapPropagator):
         self,
         carrier: textmap.CarrierT,
         context: typing.Optional[Context] = None,
-        getter: textmap.Getter = textmap.default_getter,
+        getter: textmap.Getter[textmap.CarrierT] = textmap.default_getter,
     ) -> Context:
         """Run each of the configured propagators with the given context and carrier.
         Propagators are run in the order they are configured, if multiple
@@ -56,7 +56,7 @@ class CompositePropagator(textmap.TextMapPropagator):
         self,
         carrier: textmap.CarrierT,
         context: typing.Optional[Context] = None,
-        setter: textmap.Setter = textmap.default_setter,
+        setter: textmap.Setter[textmap.CarrierT] = textmap.default_setter,
     ) -> None:
         """Run each of the configured propagators with the given context and carrier.
         Propagators are run in the order they are configured, if multiple
@@ -84,7 +84,9 @@ class CompositePropagator(textmap.TextMapPropagator):
         return composite_fields
 
 
-@deprecated(version="1.2.0", reason="You should use CompositePropagator")  # type: ignore
+@deprecated(
+    "You should use CompositePropagator. Deprecated since version 1.2.0."
+)
 class CompositeHTTPPropagator(CompositePropagator):
     """CompositeHTTPPropagator provides a mechanism for combining multiple
     propagators into a single one.

@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import unittest
 from unittest.mock import Mock
 
 import opentelemetry.trace as trace_api
@@ -24,12 +23,12 @@ from opentelemetry.propagators import (  # pylint: disable=no-name-in-module
 )
 from opentelemetry.sdk import trace
 from opentelemetry.sdk.trace import id_generator
+from opentelemetry.test import TestCase
 
 FORMAT = jaeger.JaegerPropagator()
 
 
 def get_context_new_carrier(old_carrier, carrier_baggage=None):
-
     ctx = FORMAT.extract(old_carrier)
     if carrier_baggage:
         for key, value in carrier_baggage.items():
@@ -57,17 +56,15 @@ def get_context_new_carrier(old_carrier, carrier_baggage=None):
     return ctx, new_carrier
 
 
-class TestJaegerPropagator(unittest.TestCase):
+class TestJaegerPropagator(TestCase):
     @classmethod
     def setUpClass(cls):
         generator = id_generator.RandomIdGenerator()
         cls.trace_id = generator.generate_trace_id()
         cls.span_id = generator.generate_span_id()
         cls.parent_span_id = generator.generate_span_id()
-        cls.serialized_uber_trace_id = (
-            jaeger._format_uber_trace_id(  # pylint: disable=protected-access
-                cls.trace_id, cls.span_id, cls.parent_span_id, 11
-            )
+        cls.serialized_uber_trace_id = jaeger._format_uber_trace_id(  # pylint: disable=protected-access
+            cls.trace_id, cls.span_id, cls.parent_span_id, 11
         )
 
     def test_extract_valid_span(self):
@@ -88,7 +85,7 @@ class TestJaegerPropagator(unittest.TestCase):
         old_carrier = {FORMAT.TRACE_ID_KEY: self.serialized_uber_trace_id}
         _, new_carrier = get_context_new_carrier(old_carrier)
         self.assertEqual(
-            self.serialized_uber_trace_id.split(":")[0],
+            self.serialized_uber_trace_id.split(":", maxsplit=1)[0],
             new_carrier[FORMAT.TRACE_ID_KEY].split(":")[0],
         )
 
@@ -117,10 +114,8 @@ class TestJaegerPropagator(unittest.TestCase):
         self.assertEqual(FORMAT.DEBUG_FLAG, debug_flag_value)
 
     def test_sample_debug_flags_unset(self):
-        uber_trace_id = (
-            jaeger._format_uber_trace_id(  # pylint: disable=protected-access
-                self.trace_id, self.span_id, self.parent_span_id, 0
-            )
+        uber_trace_id = jaeger._format_uber_trace_id(  # pylint: disable=protected-access
+            self.trace_id, self.span_id, self.parent_span_id, 0
         )
         old_carrier = {FORMAT.TRACE_ID_KEY: uber_trace_id}
         _, new_carrier = get_context_new_carrier(old_carrier)
@@ -230,3 +225,11 @@ class TestJaegerPropagator(unittest.TestCase):
 
                 ctx = FORMAT.extract(carrier)
                 self.assertDictEqual(Context(), ctx)
+
+    def test_non_recording_span_does_not_crash(self):
+        """Make sure propagator does not crash when working with NonRecordingSpan"""
+        mock_setter = Mock()
+        span = trace_api.NonRecordingSpan(trace_api.SpanContext(1, 1, True))
+        with trace_api.use_span(span, end_on_exit=True):
+            with self.assertNotRaises(Exception):
+                FORMAT.inject({}, setter=mock_setter)

@@ -30,12 +30,15 @@ class TestStatus(unittest.TestCase):
 
     def test_invalid_description(self):
         with self.assertLogs(level=WARNING) as warning:
-            status = Status(status_code=StatusCode.ERROR, description={"test": "val"})  # type: ignore
+            status = Status(
+                status_code=StatusCode.ERROR,
+                description={"test": "val"},  # type: ignore
+            )
             self.assertIs(status.status_code, StatusCode.ERROR)
             self.assertEqual(status.description, None)
             self.assertIn(
                 "Invalid status description type, expected str",
-                warning.output[0],
+                warning.output[0],  # type: ignore
             )
 
     def test_description_and_non_error_status(self):
@@ -47,7 +50,7 @@ class TestStatus(unittest.TestCase):
             self.assertEqual(status.description, None)
             self.assertIn(
                 "description should only be set when status_code is set to StatusCode.ERROR",
-                warning.output[0],
+                warning.output[0],  # type: ignore
             )
 
         with self.assertLogs(level=WARNING) as warning:
@@ -58,7 +61,7 @@ class TestStatus(unittest.TestCase):
             self.assertEqual(status.description, None)
             self.assertIn(
                 "description should only be set when status_code is set to StatusCode.ERROR",
-                warning.output[0],
+                warning.output[0],  # type: ignore
             )
 
         status = Status(
